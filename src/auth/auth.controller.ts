@@ -1,16 +1,16 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateAuthDto } from './dto/update-auth.dto';
-import { LoginDTO } from './dto/login.dto';
+import {CreateUserDto, UpdateAuthDto, LoginDTO, RegisterUserDTO} from './dto'
+import { AuthGuard } from './guards/auth.guard';
+import { User } from './entities/user.entity';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post()
-  create(@Body() createAuthDto: CreateUserDto) {
-    return this.authService.create(createAuthDto);
+  create(@Body() createUserDto: CreateUserDto) {
+    return this.authService.create(createUserDto);
   }
 
   @Post('login')
@@ -18,23 +18,38 @@ export class AuthController {
     return this.authService.login(loginDTO);
   }
 
+  @Post('register')
+  register(@Body() registerUserDTO: RegisterUserDTO){
+    return this.authService.register(registerUserDTO);
+  }
+
+  @UseGuards(AuthGuard)
   @Get()
-  findAll() {
+  findAll( @Request() request: Request) {
+    // const user = request['user']
+    // return user;
     return this.authService.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.authService.findOne(+id);
+  @UseGuards(AuthGuard)
+  @Get('check-token')
+  checkToken(@Request() req){
+    const user: User = req['user'];
+    return this.authService.renueToken(user);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateAuthDto: UpdateAuthDto) {
-    return this.authService.update(+id, updateAuthDto);
-  }
+  // @Get(':id')
+  // findOne(@Param('id') id: string) {
+  //   return this.authService.findOne(+id);
+  // }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.authService.remove(+id);
-  }
+  // @Patch(':id')
+  // update(@Param('id') id: string, @Body() updateAuthDto: UpdateAuthDto) {
+  //   return this.authService.update(+id, updateAuthDto);
+  // }
+
+  // @Delete(':id')
+  // remove(@Param('id') id: string) {
+  //   return this.authService.remove(+id);
+  // }
 }

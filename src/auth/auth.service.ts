@@ -1,45 +1,58 @@
 import { BadRequestException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateAuthDto } from './dto/update-auth.dto';
 import { User } from './entities/user.entity';
 import { Model } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
-import { LoginDTO } from './dto/login.dto';
+import { JwtService } from '@nestjs/jwt';
+import { JWTPayload } from './interfaces/jwt.payload';
+import { ILoginResponse } from './interfaces/login.response';
+import { CreateUserDto, UpdateAuthDto, RegisterUserDTO, LoginDTO } from './dto'
 
 @Injectable()
 export class AuthService {
 
-  constructor(@InjectModel( User.name ) private userModel: Model<User>){
+  constructor(@InjectModel( User.name ) private userModel: Model<User>,  private jwtService: JwtService){
     
   }
 
+  findAll(): Promise<User[]> {
+    return this.userModel.find();
+  }
+
   async create(createUserDto: CreateUserDto): Promise<User> {
+    console.log(createUserDto)
     try{
       const { password, ...userData} = createUserDto;
 
+      //encrypt password
       const newUser = new this.userModel({
         password: bcrypt.hashSync(password, 10),
         ...userData
       });
 
-      //encrypt password
-
       //save user
-
       await newUser.save();
       const {password: _, ...user} = newUser.toJSON();
 
       return user;
     }catch(error){
-      if(error === 11000) {
+      if(error.code === 11000) {
         throw new BadRequestException(`${createUserDto.email} already exists!`);
       }
       throw new InternalServerErrorException('Something went wrong')
     }
   }
 
-  async login(loginDTO: LoginDTO){
+  async register(registerDTO: RegisterUserDTO): Promise<ILoginResponse>{
+    const user = await this.create(registerDTO);
+    
+    return {
+      user: user,
+      token: await this.getJWT({id: user._id})
+    };
+  }
+
+  async login(loginDTO: LoginDTO):Promise<ILoginResponse>{
     const {email, password} = loginDTO;
 
     const user = await this.userModel.findOne({email});
@@ -55,24 +68,28 @@ export class AuthService {
     const {password:_, ...rest} = user.toJSON();
 
     return {
-      ...rest,
-      token: 'ABCDE123'
+      user: rest,
+      token: await this.getJWT({id: user.id}),
     }
   }
 
-  findAll() {
-    return `This action returns all auth`;
+  async findUserById(id: string){
+    const user = await this.userModel.findById(id);
+    const {password, ...rest} = user.toJSON();
+    return rest;
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} auth`;
+  async renueToken(user: User): Promise<ILoginResponse>{
+    return {
+      user,
+      token: await this.getJWT({id: user._id})
+    }
   }
 
-  update(id: number, updateAuthDto: UpdateAuthDto) {
-    return `This action updates a #${id} auth`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} auth`;
+  async getJWT(payload: JWTPayload){
+    console.log('jwt')
+    const token =  await this.jwtService.signAsync(payload);
+    console.log('token: ',token)
+    return token;
   }
 }
